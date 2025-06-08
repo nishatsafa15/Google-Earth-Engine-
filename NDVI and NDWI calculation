@@ -1,0 +1,30 @@
+var admin2 = ee.FeatureCollection("FAO/GAUL_SIMPLIFIED_500m/2015/level2"),
+    s2 = ee.ImageCollection("COPERNICUS/S2_HARMONIZED");
+var filteredAdmin2= admin2
+.filter(ee.Filter.eq('ADM1_NAME','Rangpur'))
+.filter(ee.Filter.eq('ADM2_NAME','Dinajpur'));
+
+var geometry = filteredAdmin2.geometry();
+Map.centerObject(geometry);
+
+var filteredS2 = s2
+ .filter(ee.Filter.bounds(geometry))
+.filter(ee.Filter.date('2024-01-01','2025-01-01'))
+.filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE',30));
+
+var rgbVis= {min:0.0, max:3000,bands:['B4','B3','B2']};
+var image= filteredS2.median();
+// calculaitng NDVI
+
+var ndvi = image.normalizedDifference(['B8','B4']).rename('ndvi');
+
+var ndviVis={
+  min: 0,
+  max:0.7,
+  palette: ['White','green']
+};
+
+
+
+Map.addLayer(image.clip(geometry),rgbVis,'image');
+Map.addLayer(ndvi.clip(geometry),ndviVis,'NDVI');
