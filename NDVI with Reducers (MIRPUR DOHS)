@@ -1,0 +1,87 @@
+// Computing stats on a list
+var myList = ee.List.sequence(1, 10);
+print(myList);
+
+// Using a reducer to compute average value
+var mean = myList.reduce(ee.Reducer.mean());
+print(mean);
+
+
+var geometry = ee.Geometry.Polygon([[
+   [90.36322083425512,23.834252485214122],
+  [90.36373581838598,23.829541745803752],
+  [90.37008728933324,23.829227690427043],
+  [90.37746872854223,23.833467373859854],
+  [90.37523713064184,23.840690219040756],
+  [90.3621908659934,23.840062161517405],
+  [90.36322083425512,23.834252485214122]
+  ]]);
+  
+  
+Map.centerObject(geometry);
+
+var s2 =ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
+
+// Applying a reducer on an image collection
+var filtered = s2.filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30))
+  .filter(ee.Filter.date('2024-01-01', '2025-01-01'))
+  .filter(ee.Filter.bounds(geometry))
+  .select("B.*");
+  
+print(filtered.size()); 
+print(filtered);
+var collMean = filtered.reduce(ee.Reducer.mean());
+print(collMean);
+
+Map.addLayer(geometry);
+
+var rgbVis = {min: 0.0, max: 3000, bands: ['B4', 'B3', 'B2']};
+var image = filtered.median();
+
+// calculating normalized difference vegetation index (NDVI)
+var ndvi = image.normalizedDifference(['B8', 'B4']).rename('ndvi');
+Map.addLayer(image.clip(geometry), rgbVis, 'image');
+
+// finding vegetative zone and non-vegetative
+var ndviVis = {
+  min:0, max: 0.7, 
+  palette: ['white', 'green']
+};
+
+Map.addLayer(ndvi.clip(geometry), ndviVis, 'NDVI');
+
+// Calculating Modified Normalized Diffrence Water Index (MNDI)
+var mndwi = image.normalizedDifference(['B3', 'B11']).rename('mndwi');
+
+// finding water body
+var mndwiVis = {
+  min:0, max: 0.7, 
+  palette: ['white', 'blue']
+};
+Map.addLayer(mndwi.clip(geometry), mndwiVis, 'MNDWI');
+
+// Calculating Soil Adjusted Vegetation Index (SAVI)
+// SAVI = 1.5 *( (NIR-RED)/ (NIR + RED + 0.5))
+
+var savi = image.expression(
+  '1.5 *( (NIR - RED)/ (NIR + RED + 0.5))',
+  {
+    'NIR': image.select('B8').multiply(0.0001),
+    'RED': image.select('B4').multiply(0.0001)
+  }).rename('SAVI');
+
+Map.addLayer(savi.clip(geometry), ndviVis, 'SAVI');
+
+// Calculating Normalized Difference Built-up Index (NDBI)
+// NDBI = (SWIR1 - NIR) / (SWIR1 + NIR)
+
+var ndbi = image.normalizedDifference(['B11', 'B8']).rename('ndbi');
+
+// finding built-up area
+var ndbiVis = {
+  min:0, max: 0.7, 
+  palette: ['white', 'red']
+};
+
+Map.addLayer(ndbi.clip(geometry), ndbiVis, 'NDBI');
+
