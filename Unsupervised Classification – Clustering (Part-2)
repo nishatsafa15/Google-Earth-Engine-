@@ -1,0 +1,67 @@
+var roi = ee.Geometry.Polygon([[
+  [90.86,23.91],
+  [90.55,24.18],
+  [89.83,24.03],
+  [90.42,23.46],
+  [90.86,23.91]
+]]);
+
+// Unsupervised Classification (Clustering) with Sentinel
+Map.centerObject(roi, 8);
+
+// Loading the Sentinel Images
+var image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(roi)
+            .filterMetadata('CLOUD_COVERAGE_ASSESSMENT', 'LESS_THAN', 20)
+            .filterDate('2024-01-01', '2025-01-01')
+            .select(['B4', 'B3', 'B2'])
+            .median();
+            
+// To find the correct field name, you can print an image's metadata
+// var img = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED").first();
+// print(img);
+
+var rescale = image.divide(10000);
+var clipImage = rescale.clip(roi);
+
+// Display the image
+var visParams = {
+  bands: ['B4', 'B3', 'B2'],
+  min: 0,
+  max: 0.3
+};
+
+Map.addLayer(clipImage, visParams, 'Sentinel Image');
+
+// Adjusting the zoom level of the clipped image
+Map.centerObject(clipImage, 12);
+
+// Creating the training dataset
+var trainingData = image.sample({
+  region: roi,
+  scale: 30,
+  numPixels: 5000
+});
+
+// Instantiate the clusterer and train it
+var clusterer = ee.Clusterer.wekaKMeans(4).train(trainingData);
+
+// Clustering the input using the trained clusterer
+var result = image.cluster(clusterer);
+
+// Displaying the clusters with random colors
+Map.addLayer(result.clip(roi).randomVisualizer(), {}, "Unsupervised Classification");
+
+
+var vis = result.clip(roi).randomVisualizer();
+
+Map.setCenter(91, 24, 9); // Optional: set view
+print(ui.Thumbnail({
+  image: vis,
+  params: {
+    region: roi,
+    dimensions: 512,
+    format: 'jpg'
+  },
+  style: {height: '300px'}
+}));
